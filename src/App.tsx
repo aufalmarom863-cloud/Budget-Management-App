@@ -93,33 +93,25 @@ function downloadFinanceReport(
   income: Transaction[],
   selectedMonth: string
 ) {
-  const totalExpenses = expenses.reduce((sum, transaction) => sum + transaction.amount, 0);
-  const totalIncome = income.reduce((sum, transaction) => sum + transaction.amount, 0);
-  const balance = totalIncome - totalExpenses;
+  const transactions = [
+    ...income.map((transaction) => ({ ...transaction, type: "Penghasilan", sign: 1 })),
+    ...expenses.map((transaction) => ({ ...transaction, type: "Pengeluaran", sign: -1 })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  let runningBalance = 0;
   const rows = [
-    ["Laporan Keuangan", getMonthLabel(selectedMonth)],
-    ["Ringkasan", "Jumlah (Rp)"],
-    ["Total Penghasilan", totalIncome],
-    ["Total Pengeluaran", totalExpenses],
-    ["Saldo Terakhir", balance],
-    [],
-    ["Jenis", "Tanggal", "Kategori", "Deskripsi", "Catatan", "Jumlah (Rp)"],
-    ...income.map((transaction) => [
-      "Penghasilan",
-      transaction.date,
-      transaction.category,
-      transaction.description,
-      transaction.note,
-      transaction.amount,
-    ]),
-    ...expenses.map((transaction) => [
-      "Pengeluaran",
-      transaction.date,
-      transaction.category,
-      transaction.description,
-      transaction.note,
-      transaction.amount,
-    ]),
+    ["Tanggal", "Jenis", "Kategori", "Deskripsi", "Catatan", "Jumlah (Rp)", "Saldo Berjalan (Rp)"],
+    ...transactions.map((transaction) => {
+      runningBalance += transaction.amount * transaction.sign;
+      return [
+        transaction.date,
+        transaction.type,
+        transaction.category,
+        transaction.description,
+        transaction.note,
+        transaction.amount * transaction.sign,
+        runningBalance,
+      ];
+    }),
   ];
   const csv = "\uFEFF" + rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
