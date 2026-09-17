@@ -83,6 +83,54 @@ function getMonthLabel(monthStr: string) {
   });
 }
 
+function escapeCsv(value: string | number) {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadFinanceReport(
+  expenses: Transaction[],
+  income: Transaction[],
+  selectedMonth: string
+) {
+  const totalExpenses = expenses.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totalIncome = income.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const balance = totalIncome - totalExpenses;
+  const rows = [
+    ["Laporan Keuangan", getMonthLabel(selectedMonth)],
+    ["Ringkasan", "Jumlah (Rp)"],
+    ["Total Penghasilan", totalIncome],
+    ["Total Pengeluaran", totalExpenses],
+    ["Saldo Terakhir", balance],
+    [],
+    ["Jenis", "Tanggal", "Kategori", "Deskripsi", "Catatan", "Jumlah (Rp)"],
+    ...income.map((transaction) => [
+      "Penghasilan",
+      transaction.date,
+      transaction.category,
+      transaction.description,
+      transaction.note,
+      transaction.amount,
+    ]),
+    ...expenses.map((transaction) => [
+      "Pengeluaran",
+      transaction.date,
+      transaction.category,
+      transaction.description,
+      transaction.note,
+      transaction.amount,
+    ]),
+  ];
+  const csv = "\uFEFF" + rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `laporan-keuangan-${selectedMonth}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function useLocalStorage<T>(key: string, initial: T): [T, (v: T) => void] {
   const [state, setState] = useState<T>(() => {
     try {
@@ -223,6 +271,7 @@ export default function App() {
             monthIncome={monthIncome}
             selectedMonth={selectedMonth}
             goals={goals}
+            onDownload={() => downloadFinanceReport(monthExpenses, monthIncome, selectedMonth)}
           />
         )}
         {tab === "expenses" && (
@@ -258,6 +307,7 @@ function Dashboard({
   monthIncome,
   selectedMonth,
   goals,
+  onDownload,
 }: {
   totalIncome: number;
   totalExpenses: number;
@@ -266,6 +316,7 @@ function Dashboard({
   monthIncome: Transaction[];
   selectedMonth: string;
   goals: SavingsGoal[];
+  onDownload: () => void;
 }) {
   const spendRatio = totalIncome > 0 ? (totalExpenses / totalIncome) * 100 : 0;
 
@@ -280,16 +331,25 @@ function Dashboard({
 
   return (
     <div>
-      <div className="mb-8">
-        <h1
-          className="text-3xl lg:text-4xl text-[#1C1917] mb-1"
-          style={{ fontFamily: "DM Serif Display, serif" }}
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1
+            className="text-3xl lg:text-4xl text-[#1C1917] mb-1"
+            style={{ fontFamily: "DM Serif Display, serif" }}
+          >
+            Ringkasan Bulan Ini
+          </h1>
+          <p className="text-sm text-[#A89888]">
+            {getMonthLabel(selectedMonth)} — semua angka terupdate otomatis
+          </p>
+        </div>
+        <button
+          onClick={onDownload}
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#1C1917] text-[#F5F0E8] rounded-xl text-sm font-medium hover:bg-[#3A332C] transition-colors"
+          title="Unduh laporan CSV"
         >
-          Ringkasan Bulan Ini
-        </h1>
-        <p className="text-sm text-[#A89888]">
-          {getMonthLabel(selectedMonth)} — semua angka terupdate otomatis
-        </p>
+          <span>↓</span> Unduh Catatan
+        </button>
       </div>
 
       {/* Summary cards */}
