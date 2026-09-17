@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import * as XLSX from "xlsx-js-style";
 
 type Tab = "dashboard" | "expenses" | "income" | "savings";
 
@@ -83,11 +84,6 @@ function getMonthLabel(monthStr: string) {
   });
 }
 
-function escapeCsv(value: string | number) {
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
 function downloadFinanceReport(
   expenses: Transaction[],
   income: Transaction[],
@@ -97,30 +93,99 @@ function downloadFinanceReport(
     ...income.map((transaction) => ({ ...transaction, type: "Penghasilan", sign: 1 })),
     ...expenses.map((transaction) => ({ ...transaction, type: "Pengeluaran", sign: -1 })),
   ].sort((a, b) => a.date.localeCompare(b.date));
+  const totalExpenses = expenses.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totalIncome = income.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const balance = totalIncome - totalExpenses;
+  const expenseByCategory = EXPENSE_CATEGORIES.map((category) => [
+    category,
+    expenses.filter((transaction) => transaction.category === category)
+      .reduce((sum, transaction) => sum + transaction.amount, 0),
+  ]).filter(([, amount]) => amount > 0);
+  const incomeByCategory = INCOME_CATEGORIES.map((category) => [
+    category,
+    income.filter((transaction) => transaction.category === category)
+      .reduce((sum, transaction) => sum + transaction.amount, 0),
+  ]).filter(([, amount]) => amount > 0);
+
+  const navy = "30445C";
+  const lime = "D5E648";
+  const paleGreen = "DDE9D8";
+  const white = "FFFFFF";
+  const muted = "F1F4F0";
+  const border = { style: "thin", color: { rgb: "C8D1C5" } };
+  const titleStyle = { font: { bold: true, color: { rgb: navy }, sz: 20 }, fill: { fgColor: { rgb: lime } }, alignment: { vertical: "center" } };
+  const sectionStyle = { font: { bold: true, color: { rgb: white } }, fill: { fgColor: { rgb: navy } }, alignment: { vertical: "center" } };
+  const headerStyle = { font: { bold: true, color: { rgb: navy } }, fill: { fgColor: { rgb: lime } }, border, alignment: { horizontal: "center", vertical: "center", wrapText: true } };
+  const labelStyle = { font: { bold: true, color: { rgb: navy } }, fill: { fgColor: { rgb: paleGreen } }, border };
+  const bodyStyle = { border, alignment: { vertical: "center" } };
+  const moneyStyle = { ...bodyStyle, numFmt: '"Rp" #,##0;[Red]-"Rp" #,##0' };
+
+  const reportRows: (string | number)[][] = [
+    ["LAPORAN KEUANGAN PRIBADI"],
+    [`Periode: ${getMonthLabel(selectedMonth)}`],
+    [],
+    ["RINGKASAN KEUANGAN"],
+    ["Total Penghasilan", totalIncome],
+    ["Total Pengeluaran", totalExpenses],
+    ["Saldo Terakhir", balance],
+    [],
+    ["PENGHASILAN PER KATEGORI"],
+    ["Kategori", "Jumlah"],
+    ...incomeByCategory,
+    ["Total Penghasilan", totalIncome],
+    [],
+    ["PENGELUARAN PER KATEGORI"],
+    ["Kategori", "Jumlah"],
+    ...expenseByCategory,
+    ["Total Pengeluaran", totalExpenses],
+  ];
+  const reportSheet = XLSX.utils.aoa_to_sheet(reportRows);
+  reportSheet["A1"].s = titleStyle;
+  reportSheet["A2"].s = { font: { italic: true, color: { rgb: "5F6D63" } } };
+  ["A4", "A9", `A${10 + incomeByCategory.length + 2}`].forEach((cell) => {
+    if (reportSheet[cell]) reportSheet[cell].s = sectionStyle;
+  });
+  ["A10", `A${11 + incomeByCategory.length + 2}`].forEach((cell) => {
+    if (reportSheet[cell]) reportSheet[cell].s = headerStyle;
+  });
+  ["A5", "A6", "A7"].forEach((cell) => { reportSheet[cell].s = labelStyle; });
+  ["B5", "B6", "B7"].forEach((cell) => { reportSheet[cell].s = { ...moneyStyle, font: { bold: true, color: { rgb: navy } } }; });
+  for (let row = 11; row <= 11 + incomeByCategory.length; row++) {
+    reportSheet[`A${row}`].s = row === 11 + incomeByCategory.length ? labelStyle : bodyStyle;
+    reportSheet[`B${row}`].s = { ...moneyStyle, font: row === 11 + incomeByCategory.length ? { bold: true, color: { rgb: navy } } : undefined };
+  }
+  const expenseHeaderRow = 12 + incomeByCategory.length;
+  const expenseStartRow = expenseHeaderRow + 1;
+  for (let row = expenseHeaderRow + 1; row <= expenseStartRow + expenseByCategory.length; row++) {
+    reportSheet[`A${row}`].s = row === expenseStartRow + expenseByCategory.length ? labelStyle : bodyStyle;
+    reportSheet[`B${row}`].s = { ...moneyStyle, font: row === expenseStartRow + expenseByCategory.length ? { bold: true, color: { rgb: navy } } : undefined };
+  }
+  reportSheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }, { s: { r: 3, c: 0 }, e: { r: 3, c: 1 } }, { s: { r: 8, c: 0 }, e: { r: 8, c: 1 } }, { s: { r: expenseHeaderRow - 2, c: 0 }, e: { r: expenseHeaderRow - 2, c: 1 } }];
+  reportSheet["!cols"] = [{ wch: 29 }, { wch: 19 }];
+  reportSheet["!rows"] = [{ hpt: 34 }, { hpt: 22 }];
+
   let runningBalance = 0;
-  const rows = [
+  const rawRows = [
     ["Tanggal", "Jenis", "Kategori", "Deskripsi", "Catatan", "Jumlah (Rp)", "Saldo Berjalan (Rp)"],
     ...transactions.map((transaction) => {
       runningBalance += transaction.amount * transaction.sign;
-      return [
-        transaction.date,
-        transaction.type,
-        transaction.category,
-        transaction.description,
-        transaction.note,
-        transaction.amount * transaction.sign,
-        runningBalance,
-      ];
+      return [transaction.date, transaction.type, transaction.category, transaction.description, transaction.note, transaction.amount * transaction.sign, runningBalance];
     }),
   ];
-  const csv = "\uFEFF" + rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `laporan-keuangan-${selectedMonth}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+  const rawSheet = XLSX.utils.aoa_to_sheet(rawRows);
+  for (let column = 0; column < 7; column++) rawSheet[XLSX.utils.encode_cell({ r: 0, c: column })].s = headerStyle;
+  for (let row = 1; row < rawRows.length; row++) {
+    for (let column = 0; column < 5; column++) rawSheet[XLSX.utils.encode_cell({ r: row, c: column })].s = { ...bodyStyle, fill: { fgColor: { rgb: row % 2 ? white : muted } } };
+    rawSheet[XLSX.utils.encode_cell({ r: row, c: 5 })].s = { ...moneyStyle, fill: { fgColor: { rgb: row % 2 ? white : muted } } };
+    rawSheet[XLSX.utils.encode_cell({ r: row, c: 6 })].s = { ...moneyStyle, fill: { fgColor: { rgb: row % 2 ? white : muted } } };
+  }
+  rawSheet["!cols"] = [{ wch: 13 }, { wch: 16 }, { wch: 24 }, { wch: 30 }, { wch: 34 }, { wch: 16 }, { wch: 20 }];
+  rawSheet["!autofilter"] = { ref: `A1:G${rawRows.length}` };
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, reportSheet, "Laporan Keuangan");
+  XLSX.utils.book_append_sheet(workbook, rawSheet, "Data Mentah");
+  XLSX.writeFile(workbook, `laporan-keuangan-${selectedMonth}.xlsx`);
 }
 
 function useLocalStorage<T>(key: string, initial: T): [T, (v: T) => void] {
@@ -338,9 +403,9 @@ function Dashboard({
         <button
           onClick={onDownload}
           className="flex items-center gap-2 px-4 py-2.5 bg-[#1C1917] text-[#F5F0E8] rounded-xl text-sm font-medium hover:bg-[#3A332C] transition-colors"
-          title="Unduh laporan CSV"
+          title="Unduh laporan Excel"
         >
-          <span>↓</span> Unduh Catatan
+          <span>↓</span> Unduh Excel
         </button>
       </div>
 
