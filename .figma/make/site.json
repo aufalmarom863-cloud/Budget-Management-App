@@ -1,0 +1,10 @@
+{
+  "description": "Track and manage your income, expenses, and savings goals with an easy-to-use dashboard that updates automatically for clear financial insights.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

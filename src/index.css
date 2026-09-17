@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'DM Serif Display', serif;
+  --font-sans: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-cream: #F5F0E8;
+  --color-cream-dark: #EDE6D9;
+  --color-parchment: #FFFDF8;
+  --color-ink: #1C1917;
+  --color-ink-muted: #6B5E55;
+  --color-ink-faint: #A89888;
+  --color-forest: #1A4A3A;
+  --color-forest-light: #2D6B56;
+  --color-forest-pale: #E6F0EC;
+  --color-terra: #C4623A;
+  --color-terra-light: #D97B58;
+  --color-terra-pale: #F5E8E2;
+  --color-gold: #C8963E;
+  --color-gold-pale: #F5EDD9;
+  --color-border: #DDD5C8;
+}
+
+* {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-color: #F5F0E8;
+  color: #1C1917;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #C8B8A8; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #A89888; }
